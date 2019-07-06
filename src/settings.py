@@ -174,31 +174,31 @@ FORCE_SCRIPT_NAME = ""
 
 FISUDA_PORTALS = (
     {
-        "name": "クラウド",
+        "name": "Cloud",
         "url": "https://cloud.lab.fisuda.jp"
     },
     {
-        "name": "ストア",
+        "name": "Store",
         "url": "https://store.lab.fisuda.jp",
         "logout_path": "/logout"
     },
     {
-        "name": "マッシュアップ",
+        "name": "Mashup",
         "url": "https://mashup.lab.fisuda.jp",
         "logout_path": "/logout"
     },
     {
-        "name": "データ",
+        "name": "Data",
         "url": "https://data.lab.fisuda.jp",
         "logout_path": "/user/logout"
     },
     {
-        "name": "アカウント",
+        "name": "Account",
         "url": "https://account.lab.fisuda.jp",
         "logout_path": "/auth/logout/"
     },
     {
-        "name": "ヘルプ",
+        "name": "Help&info",
         "url": "https://www.letsfiware.jp"
     },
 )
