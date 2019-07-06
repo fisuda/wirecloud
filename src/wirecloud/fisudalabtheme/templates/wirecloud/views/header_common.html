@@ -1,0 +1,17 @@
+{% load wirecloudtags %}
+<header class="navbar fisuda-header">
+    <div class="container-fluid">
+        <div class="logo-fl-header">
+            <a href="{{ FISUDA_HOME }}" class="brand">
+                <img alt="FISUDA Lab" class="fisuda-logo" src="{% theme_static "images/fisudalab.png" %}" />
+            </a>
+        </div><nav class="collapse">
+            <div id="wc-user-menu" class="user-menu nav pull-right"></div>
+            <ul class="nav navbar-nav">
+                {% for portal in FIWARE_PORTALS %}<li {% ifinternalurl portal.url %}class="active"{% endifinternalurl %}>
+                <a href="{{ portal.url }}">{{ portal.name }}</a>
+                </li>{% endfor %}
+            </ul>
+        </nav>
+    </div>
+</header>

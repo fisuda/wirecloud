@@ -171,3 +171,67 @@ FORCE_SCRIPT_NAME = ""
 #        'CLASS': 'selenium.webdriver.Safari',
 #    },
 #}
+
+FISUDA_PORTALS = (
+    {
+        "name": "クラウド",
+        "url": "https://cloud.lab.fisuda.jp"
+    },
+    {
+        "name": "ストア",
+        "url": "https://store.lab.fisuda.jp",
+        "logout_path": "/logout"
+    },
+    {
+        "name": "マッシュアップ",
+        "url": "https://mashup.lab.fisuda.jp",
+        "logout_path": "/logout"
+    },
+    {
+        "name": "データ",
+        "url": "https://data.lab.fisuda.jp",
+        "logout_path": "/user/logout"
+    },
+    {
+        "name": "アカウント",
+        "url": "https://account.lab.fisuda.jp",
+        "logout_path": "/auth/logout/"
+    },
+    {
+        "name": "ヘルプ",
+        "url": "https://www.letsfiware.jp"
+    },
+)
+
+FIWARE_PORTALS = (
+    {
+        "name": "Cloud",
+        "url": "https://cloud.lab.fisuda.jp"
+    },
+    {
+        "name": "Store",
+        "url": "https://store.lab.fisuda.jp",
+        "logout_path": "/logout"
+    },
+    {
+        "name": "Mashup",
+        "url": "https://mashup.lab.fisuda.jp",
+        "logout_path": "/logout"
+    },
+    {
+        "name": "Data",
+        "url": "https://data.lab.fisuda.jp",
+        "logout_path": "/user/logout"
+    },
+    {
+        "name": "Account",
+        "url": "https://account.lab.fisuda.jp",
+        "logout_path": "/auth/logout/"
+    },
+    {
+        "name": "Help&info",
+        "url": "https://www.letsfiware.jp"
+    },
+)
+
+FORCE_PROTO = "https"
