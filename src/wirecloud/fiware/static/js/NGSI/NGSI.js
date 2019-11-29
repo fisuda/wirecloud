@@ -268,6 +268,8 @@
             ENTITY_ENTRY: 'v2/entities/%(entityId)s',
             SUBSCRIPTION_COLLECTION: 'v2/subscriptions',
             SUBSCRIPTION_ENTRY: 'v2/subscriptions/%(subscriptionId)s',
+            REGISTRATION_COLLECTION: 'v2/v2/registrations',
+            REGISTRATION_ENTRY: 'v2/registrations/%(registrationId)s',
             TYPE_COLLECTION: 'v2/types',
             TYPE_ENTRY: 'v2/types/%(typeId)s'
         }
@@ -5257,6 +5259,564 @@
 
         var connection = privates.get(this);
         var url = new URL(interpolate(NGSI.endpoints.v2.SUBSCRIPTION_ENTRY, {subscriptionId: encodeURIComponent(options.id)}), connection.url);
+
+        return makeJSONRequest2.call(connection, url, {
+            method: "DELETE",
+            requestHeaders: {
+                "FIWARE-Correlator": options.correlator,
+                "FIWARE-Service": options.service,
+                "FIWARE-ServicePath": options.servicepath
+            }
+        }).then(function (response) {
+            var correlator = response.getHeader('Fiware-correlator');
+            if (response.status === 404) {
+                return parse_not_found_response(response, correlator);
+            } else if (response.status !== 204) {
+                return Promise.reject(new NGSI.InvalidResponseError('Unexpected error code: ' + response.status, correlator));
+            }
+            return Promise.resolve({
+                correlator: correlator
+            });
+        });
+    };
+
+    /**
+     * Retrieves the available registrations (using pagination).
+     *
+     * > This method uses v2 of the FIWARE's NGSI Specification
+     *
+     * @since 1.0
+     *
+     * @name NGSI.Connection#v2.listRegistrations
+     * @method "v2.listRegistrations"
+     * @memberof NGSI.Connection
+     *
+     * @param {Object} [options]
+     *
+     * Object with extra options:
+     *
+     * - `correlator` (`String`): Transaction id
+     * - `count` (`Boolean`; default: `false`): request total count
+     * - `limit` (`Number`; default: `20`): This option allow you to specify
+     *   the maximum number of registrations you want to receive from the
+     *   server
+     * - `offset` (`Number`; default: `0`): Allows you to skip a given
+     *   number of elements at the beginning
+     * - `service` (`String`): Service/tenant to use in this operation
+     * - `servicepath` (`String`): Service path to use in this operation
+     *
+     * @throws {NGSI.ConnectionError}
+     * @throws {NGSI.InvalidResponseError}
+     *
+     * @returns {Promise}
+     *
+     * @example <caption>Retrieve first 20 registrations from the Context Broker</caption>
+     *
+     * connection.v2.listRegistrations().then(
+     *     (response) => {
+     *         // Registrations retrieved successfully
+     *         // response.results is an array with the retrieved registrations
+     *     }, (error) => {
+     *         // Error retrieving registrations
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     *
+     * @example <caption>Retrieve second page from the Context Broker requesting pagination details</caption>
+     *
+     * connection.v2.listRegistrations({offset: 20, details: true}).then(
+     *     (response) => {
+     *         // Registrations retrieved successfully
+     *         // response.correlator transaction id associated with the server response
+     *         // response.limit contains the used page size
+     *         // response.results is an array with the retrieved registrations
+     *         // response.count contains the number of available registrations
+     *         // response.offset contains the offset used in the request
+     *     }, (error) => {
+     *         // Error retrieving registrations
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     *
+     */
+    NGSI.Connection.V2.prototype.listRegistrations = function listRegistrations(options) {
+        if (options == null) {
+            options = {};
+        }
+
+        var connection = privates.get(this);
+        var url = new URL(NGSI.endpoints.v2.REGISTRATION_COLLECTION, connection.url);
+        var optionsparams = [];
+        var parameters = parse_pagination_options2(options, optionsparams);
+
+        if (optionsparams.length !== 0) {
+            parameters.options = optionsparams.join(',');
+        }
+
+        return makeJSONRequest2.call(connection, url, {
+            method: "GET",
+            parameters: parameters,
+            requestHeaders: {
+                "FIWARE-Correlator": options.correlator,
+                "FIWARE-Service": options.service,
+                "FIWARE-ServicePath": options.servicepath
+            }
+        }).then(function (response) {
+            var correlator = response.getHeader('Fiware-correlator');
+            if (response.status !== 200) {
+                return Promise.reject(new NGSI.InvalidResponseError('Unexpected error code: ' + response.status, correlator));
+            }
+
+            var result = {
+                correlator: correlator,
+                limit: options.limit,
+                offset: options.offset,
+                results: JSON.parse(response.responseText),
+            };
+            if (options.count === true) {
+                result.count = parseInt(response.getHeader("Fiware-Total-Count"), 10);
+            }
+
+            return Promise.resolve(result);
+        });
+    };
+
+    /**
+     * Creates a new registration.
+     *
+     * > This method uses v2 of the FIWARE's NGSI Specification
+     *
+     * @since 1.0
+     *
+     * @name NGSI.Connection#v2.createRegistration
+     * @method "v2.createRegistration"
+     * @memberof NGSI.Connection
+     *
+     * @param {Object}
+     *
+     * registration values to be used for creating it
+     *
+     * @param {Object} [options]
+     *
+     * Object with extra options:
+     * - `skipInitialNotification` (`Boolean`; Default: `false`): Skip Initial Context Broker notification
+     * - `correlator` (`String`): Transaction id
+     * - `service` (`String`): Service/tenant to use in this operation
+     * - `servicepath` (`String`): Service path to use in this operation
+     *
+     * @throws {NGSI.BadRequestError}
+     * @throws {NGSI.ConnectionError}
+     * @throws {NGSI.InvalidResponseError}
+     *
+     * @returns {Promise}
+     *
+     * @example <caption>Basic usage</caption>
+     *
+     * connection.v2.createRegistration({
+     *    "description": "One registration to rule them all",
+     *    "subject": {
+     *        "entities": [
+     *            {
+     *                "idPattern": ".*",
+     *                "type": "Room"
+     *            }
+     *        ],
+     *        "condition": {
+     *            "attrs": [
+     *                "temperature"
+     *            ],
+     *            "expression": {
+     *                "q": "temperature>40"
+     *            }
+     *        }
+     *    },
+     *    "notification": {
+     *        "http": {
+     *            "url": "http://localhost:1234"
+     *        },
+     *        "attrs": [
+     *            "temperature",
+     *            "humidity"
+     *        ]
+     *    },
+     *    "expires": "2016-04-05T14:00:00.00Z",
+     *    "throttling": 5
+     * }).then(
+     *     (response) => {
+     *         // Registration created successfully
+     *         // response.correlator transaction id associated with the server response
+     *     }, (error) => {
+     *         // Error creating the registration
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     *
+     * @example <caption>Creating a registration using a callback</caption>
+     *
+     * connection.v2.createRegistration({
+     *    "description": "One registration to rule them all",
+     *    "subject": {
+     *        "entities": [
+     *            {
+     *                "idPattern": ".*",
+     *                "type": "Room"
+     *            }
+     *        ],
+     *        "condition": {
+     *            "attrs": [
+     *                "temperature"
+     *            ],
+     *            "expression": {
+     *                "q": "temperature>40"
+     *            }
+     *        }
+     *    },
+     *    "notification": {
+     *        "callback": function (notification, headers, error) {
+     *            // notification.attrsformat provides information about the format used by notification.data
+     *            // notification.data contains the modified entities
+     *            // notification.registrationId provides the associated registration id
+     *            // etc...
+     *
+     *            // In case of disconnection from the ngsi-proxy, this method
+     *            // will be called with error = true and notification and
+     *            // header being null
+     *        },
+     *        "attrs": [
+     *            "temperature",
+     *            "humidity"
+     *        ]
+     *    },
+     *    "expires": "2016-04-05T14:00:00.00Z",
+     *    "throttling": 5
+     * }).then(
+     *     (response) => {
+     *         // Registration created successfully
+     *         // response.correlator transaction id associated with the server response
+     *     }, (error) => {
+     *         // Error creating the registration
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     *
+     */
+    NGSI.Connection.V2.prototype.createRegistration = function createRegistration(registration, options) {
+        var p, proxy_callback;
+        var connection = privates.get(this);
+
+        if (options == null) {
+            options = {};
+        }
+
+        if (typeof registration !== 'object') {
+            throw new TypeError('invalid registration parameter');
+        }
+
+        if ('callback' in registration.notification) {
+            if (typeof registration.notification.callback !== "function") {
+                throw new TypeError('invalid callback configuration');
+            }
+
+            var onNotify = function onNotify(payload, headers) {
+                var notification = JSON.parse(payload);
+                notification.attrsformat = headers['ngsiv2-attrsformat'];
+                this(notification);
+            }.bind(registration.notification.callback);
+
+            p = connection.ngsi_proxy.requestCallback(onNotify).then(
+                function (response) {
+                    proxy_callback = response;
+                    delete registration.notification.callback;
+                    registration.notification.http = {
+                        url: proxy_callback.url
+                    };
+                }
+            );
+        } else {
+            p = Promise.resolve();
+        }
+
+        var parameters = {};
+        if (options.skipInitialNotification === true) {
+            parameters.options = "skipInitialNotification";
+        }
+
+        var url = new URL(NGSI.endpoints.v2.REGISTRATION_COLLECTION, connection.url);
+        return p.then(function () {
+            return makeJSONRequest2.call(connection, url, {
+                method: "POST",
+                postBody: registration,
+                parameters: parameters,
+                requestHeaders: {
+                    "FIWARE-Correlator": options.correlator,
+                    "FIWARE-Service": options.service,
+                    "FIWARE-ServicePath": options.servicepath
+                }
+            });
+        }).then(function (response) {
+            var correlator = response.getHeader('Fiware-correlator');
+            if (response.status === 400) {
+                return parse_bad_request(response, correlator);
+            } else if (response.status !== 201) {
+                return Promise.reject(new NGSI.InvalidResponseError('Unexpected error code: ' + response.status, correlator));
+            }
+
+            var location_header = response.getHeader('Location');
+            try {
+                var registration_url = new URL(location_header, connection.url);
+                var registration_id = registration_url.pathname.split('/').pop();
+                registration.id = registration_id;
+            } catch (e) {
+                return Promise.reject(new NGSI.InvalidResponseError('Unexpected location header: ' + location_header, correlator));
+            }
+
+            if (proxy_callback) {
+                this.ngsi_proxy.associateRegistrationId(proxy_callback.callback_id, registration_id, "v2");
+            }
+
+            return Promise.resolve({
+                correlator: correlator,
+                registration: registration,
+                location: location_header
+            });
+        }.bind(connection), function (error) {
+            if (proxy_callback) {
+                this.ngsi_proxy.closeCallback(proxy_callback.callback_id);
+            }
+            return Promise.reject(error);
+        }.bind(connection));
+    };
+
+    /**
+     * Gets all the details of a registration.
+     *
+     * > This method uses v2 of the FIWARE's NGSI Specification
+     *
+     * @since 1.0
+     *
+     * @name NGSI.Connection#v2.getRegistration
+     * @method "v2.getRegistration"
+     * @memberof NGSI.Connection
+     *
+     * @param {String|Object} options
+     *
+     * Object with extra options:
+     *
+     * - `correlator` (`String`): Transaction id
+     * - `service` (`String`): Service/tenant to use in this operation
+     * - `servicepath` (`String`): Service path to use in this operation
+     *
+     * @throws {NGSI.ConnectionError}
+     * @throws {NGSI.InvalidResponseError}
+     * @throws {NGSI.NotFoundError}
+     *
+     * @returns {Promise}
+     *
+     * @example <caption>Basic usage</caption>
+     *
+     * connection.v2.getRegistration("abcdef").then(
+     *     (response) => {
+     *         // Registration details retrieved successfully
+     *         // response.registration registration details
+     *         // response.correlator transaction id associated with the server response
+     *     }, (error) => {
+     *         // Error retrieving registration
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     *
+     */
+    NGSI.Connection.V2.prototype.getRegistration = function getRegistration(options) {
+        if (options == null) {
+            throw new TypeError("missing options parameter");
+        }
+
+        if (typeof options === "string") {
+            options = {
+                id: options
+            };
+        }
+
+        var connection = privates.get(this);
+        var url = new URL(interpolate(NGSI.endpoints.v2.REGISTRATION_ENTRY, {registrationId: encodeURIComponent(options.id)}), connection.url);
+
+        return makeJSONRequest2.call(connection, url, {
+            method: "GET",
+            requestHeaders: {
+                "FIWARE-Correlator": options.correlator,
+                "FIWARE-Service": options.service,
+                "FIWARE-ServicePath": options.servicepath
+            }
+        }).then(function (response) {
+            var correlator = response.getHeader('Fiware-correlator');
+            if (response.status === 404) {
+                return parse_not_found_response(response, correlator);
+            } else if (response.status !== 200) {
+                return Promise.reject(new NGSI.InvalidResponseError('Unexpected error code: ' + response.status, correlator));
+            }
+            try {
+                var data = JSON.parse(response.responseText);
+            } catch (e) {
+                throw new NGSI.InvalidResponseError('Server returned invalid JSON content', correlator);
+            }
+            return Promise.resolve({
+                correlator: correlator,
+                registration: data
+            });
+        });
+    };
+
+    /**
+     * Updates a registration.
+     *
+     * > This method uses v2 of the FIWARE's NGSI Specification
+     *
+     * @since 1.0
+     *
+     * @name NGSI.Connection#v2.updateRegistration
+     * @method "v2.updateRegistration"
+     * @memberof NGSI.Connection
+     *
+     * @param {Object} changes
+     * @param {Object} [options]
+     *
+     * Object with extra options:
+     *
+     * - `correlator` (`String`): Transaction id
+     * - `service` (`String`): Service/tenant to use in this operation
+     * - `servicepath` (`String`): Service path to use in this operation
+     *
+     * @throws {NGSI.ConnectionError}
+     * @throws {NGSI.InvalidResponseError}
+     * @throws {NGSI.NotFoundError}
+     *
+     * @returns {Promise}
+     *
+     * @example <caption>Update registration expiration time</caption>
+     *
+     * connection.v2.updateRegistration({
+     *     "id": "abcdef",
+     *     "expires": "2016-04-05T14:00:00.00Z"
+     * }).then(
+     *     (response) => {
+     *         // Registration updated successfully
+     *         // response.correlator transaction id associated with the server response
+     *     }, (error) => {
+     *         // Error updating registration
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     *
+     * @example <caption>Use a custom service path for the update operation</caption>
+     *
+     * connection.v2.updateRegistration({
+     *     "id": "abcdef",
+     *     "expires": "2016-04-05T14:00:00.00Z"
+     * }, {
+     *     servicepath: "/Spain/Madrid"
+     * }).then(
+     *     (response) => {
+     *         // Registration updated successfully
+     *         // response.correlator transaction id associated with the server response
+     *     }, (error) => {
+     *         // Error updating registration
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     *
+     */
+    NGSI.Connection.V2.prototype.updateRegistration = function updateRegistration(changes, options) {
+        if (options == null) {
+            options = {};
+        }
+
+        var connection = privates.get(this);
+        var url = new URL(interpolate(NGSI.endpoints.v2.REGISTRATION_ENTRY, {registrationId: encodeURIComponent(changes.id)}), connection.url);
+
+        // Remove id from the payload
+        delete changes.id;
+
+        return makeJSONRequest2.call(connection, url, {
+            method: "PATCH",
+            postBody: changes,
+            requestHeaders: {
+                "FIWARE-Correlator": options.correlator,
+                "FIWARE-Service": options.service,
+                "FIWARE-ServicePath": options.servicepath
+            }
+        }).then(function (response) {
+            var correlator = response.getHeader('Fiware-correlator');
+            if (response.status === 404) {
+                return parse_not_found_response(response, correlator);
+            } else if (response.status !== 204) {
+                return Promise.reject(new NGSI.InvalidResponseError('Unexpected error code: ' + response.status, correlator));
+            }
+            return Promise.resolve({
+                correlator: correlator
+            });
+        });
+    };
+
+    /**
+     * Removes a registration from the orion context broker server.
+     *
+     * > This method uses v2 of the FIWARE's NGSI Specification
+     *
+     * @since 1.0
+     *
+     * @name NGSI.Connection#v2.deleteRegistration
+     * @method "v2.deleteRegistration"
+     * @memberof NGSI.Connection
+     *
+     * @param {String|Object} options
+     *
+     * String with the id of the registration to remove or an object with
+     * options:
+     *
+     * - `correlator` (`String`): Transaction id
+     * - `id` (`String`): Id of the registration to remove
+     * - `service` (`String`): Service/tenant to use in this operation
+     * - `servicepath` (`String`): Service path to use in this operation
+     *
+     * @throws {NGSI.ConnectionError}
+     * @throws {NGSI.InvalidResponseError}
+     * @throws {NGSI.NotFoundError}
+     *
+     * @returns {Promise}
+     *
+     * @example
+     *
+     * connection.v2.deleteRegistration("57f7787a5f817988e4eb3dda").then(
+     *     (response) => {
+     *         // Registration deleted successfully
+     *         // response.correlator transaction id associated with the server response
+     *     }, (error) => {
+     *         // Error deleting registration
+     *         // If the error was reported by Orion, error.correlator will be
+     *         // filled with the associated transaction id
+     *     }
+     * );
+     */
+    NGSI.Connection.V2.prototype.deleteRegistration = function deleteRegistration(options) {
+        if (options == null) {
+            throw new TypeError("missing options parameter");
+        }
+
+        if (typeof options === "string") {
+            options = {
+                id: options
+            };
+        }
+
+        var connection = privates.get(this);
+        var url = new URL(interpolate(NGSI.endpoints.v2.REGISTRATION_ENTRY, {registrationId: encodeURIComponent(options.id)}), connection.url);
 
         return makeJSONRequest2.call(connection, url, {
             method: "DELETE",
